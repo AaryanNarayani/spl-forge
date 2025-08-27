@@ -28,7 +28,11 @@ pub enum ConfigCommand {
     Set {
         #[arg(long)]
         url: Option<String>,
+
         #[arg(long)]
         keypair: Option<PathBuf>,
+
+        #[arg(long)]
+        commitment: Option<String>,
     }
 }

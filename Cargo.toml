@@ -10,4 +10,5 @@ colored = "3.0.0"
 dirs = "6.0.0"
 serde = {version = "1.0.219" , features = ["derive"]}
 serde_json = "1.0.143"
+solana-sdk = {version = "3.0.0", features = ["full"] }
 tokio = {version = "1.47.1" , features = ["full"]}
