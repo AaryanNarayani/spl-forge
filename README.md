@@ -1,7 +1,7 @@
 # spl-forge
 
 -- help : done 
--- config: base done
+-- config: done
     -- set --url --keypair
     -- get 
     -- reset
