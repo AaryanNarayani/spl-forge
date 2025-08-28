@@ -1,11 +1,11 @@
 # spl-forge
 
--- help : done 
--- config: done
+help : done 
+config: done
     set --url --keypair
     get 
     reset
--- create: in progress
+create: in progress
     mint
         -- decimals
         -- mint-authority
@@ -52,3 +52,6 @@
         -- burn-lp
         -- lock-lp-duration
 
+update:
+manage:
+util: 
