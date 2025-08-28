@@ -42,7 +42,8 @@ create: in progress
         -- name
         -- symbol
         -- decimals
-        -- uri
+        -- image-path
+        -- description
         -- mint-authority
         -- initial-supply
         -- freeze-authority
