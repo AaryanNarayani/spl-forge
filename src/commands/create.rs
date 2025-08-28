@@ -6,7 +6,7 @@ pub fn handle_create(args: CreateArgs) {
         CreateCommand::Mint { mint_authority, freeze_authority, decimals, initial_supply } => {
             handler_in_progress()
         }
-        CreateCommand::Launch { name, symbol, uri, decimals, initial_supply, mint_authority, freeze_authority, initial_lp_base, initial_lp_quote, immutable, burn_lp, lock_lp_duration } => {
+        CreateCommand::Launch { name, symbol, decimals, initial_supply, mint_authority, freeze_authority, initial_lp_base, initial_lp_quote, immutable, burn_lp, lock_lp_duration , description , image_path} => {
             handler_in_progress()
         }
         CreateCommand::Market { base_mint, quote_mint } => {

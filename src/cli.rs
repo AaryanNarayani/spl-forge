@@ -141,7 +141,10 @@ pub enum CreateCommand {
         symbol: String,
 
         #[arg(long)]
-        uri: String,
+        image_path: String,
+
+        #[arg(long)]
+        description: Option<String>,
 
         #[arg(long)]
         decimals: u8,
