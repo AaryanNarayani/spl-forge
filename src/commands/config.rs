@@ -6,9 +6,6 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::PathBuf;
 
-// --- Data Structure & File Logic (Updated & Consolidated) ---
-
-/// This struct represents the data in our rich config file.
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct ConfigData {
     pub json_rpc_url: String,
@@ -19,8 +16,6 @@ pub struct ConfigData {
 }
 
 impl ConfigData {
-    /// Defines the default values created by the `init` command.
-    /// The `reset` command also uses this.
     pub fn default_values() -> Self {
         let default_keypair_path = dirs::home_dir()
             .map(|p| p.join(".config/spl-forge/id.json").to_string_lossy().to_string())
@@ -41,7 +36,6 @@ impl ConfigData {
         }
     }
 
-    /// A helper function to get the path to the config file.
     pub fn path() -> Result<PathBuf> {
         let home_dir =
             dirs::home_dir().ok_or_else(|| anyhow::anyhow!("Could not find home directory"))?;
@@ -50,14 +44,12 @@ impl ConfigData {
         Ok(config_dir.join("config.json"))
     }
 
-    /// Loads config from file. Assumes the file was created by the `init` command.
     pub fn load() -> Result<Self> {
         let path = Self::path()?;
         let config_data = std::fs::read_to_string(path)?;
         Ok(serde_json::from_str(&config_data)?)
     }
 
-    /// Saves the current config to the file.
     pub fn save(&self) -> Result<()> {
         let path = Self::path()?;
         let config_data = serde_json::to_string_pretty(self)?;
@@ -66,21 +58,16 @@ impl ConfigData {
     }
 }
 
-// --- Command Handlers (Updated) ---
-
-/// Main handler that dispatches to the correct function.
 pub async fn handle_config(args: ConfigArgs) -> Result<()> {
     match args.command {
         ConfigCommand::Get => handle_get().await,
         ConfigCommand::Reset => handle_reset().await,
-        // Note: The fields here must match your updated cli.rs definition
         ConfigCommand::Set { url, keypair, commitment } => {
             handle_set(url, keypair, commitment).await
         }
     }
 }
 
-/// Logic for the "get" command, updated for the new fields.
 async fn handle_get() -> Result<()> {
     let config = ConfigData::load()?;
     println!();
@@ -94,7 +81,6 @@ async fn handle_get() -> Result<()> {
     Ok(())
 }
 
-/// Logic for the "reset" command, uses the new default values.
 async fn handle_reset() -> Result<()> {
     let config = ConfigData::default_values();
     config.save()?;
@@ -104,7 +90,6 @@ async fn handle_reset() -> Result<()> {
     Ok(())
 }
 
-/// Logic for the "set" command, updated for new fields.
 async fn handle_set(
     url: Option<String>,
     keypair: Option<PathBuf>,
