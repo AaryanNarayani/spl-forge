@@ -1,5 +1,5 @@
 use crate::cli::{ConfigArgs, ConfigCommand};
-use crate::common::solana_path::get_solana_keypair_path;
+use crate::common::paths::{get_solana_keypair_path, path};
 use anyhow::Result;
 use colored::Colorize;
 use serde::{Deserialize, Serialize};
@@ -36,22 +36,14 @@ impl ConfigData {
         }
     }
 
-    pub fn path() -> Result<PathBuf> {
-        let home_dir =
-            dirs::home_dir().ok_or_else(|| anyhow::anyhow!("Could not find home directory"))?;
-        let config_dir = home_dir.join(".config").join("spl-forge");
-        std::fs::create_dir_all(&config_dir)?;
-        Ok(config_dir.join("config.json"))
-    }
-
     pub fn load() -> Result<Self> {
-        let path = Self::path()?;
+        let path = path()?;
         let config_data = std::fs::read_to_string(path)?;
         Ok(serde_json::from_str(&config_data)?)
     }
 
     pub fn save(&self) -> Result<()> {
-        let path = Self::path()?;
+        let path = path()?;
         let config_data = serde_json::to_string_pretty(self)?;
         std::fs::write(path, config_data)?;
         Ok(())
@@ -72,7 +64,7 @@ async fn handle_get() -> Result<()> {
     let config = ConfigData::load()?;
     println!();
     println!("{}", "Current Configuration:".bold().yellow());
-    println!("  {:<15} {}", "Config Path:".cyan(), ConfigData::path()?.to_string_lossy());
+    println!("  {:<15} {}", "Config Path:".cyan(), path()?.to_string_lossy());
     println!("  {:<15} {}", "RPC URL:".cyan(), config.json_rpc_url);
     println!("  {:<15} {}", "Websocket URL:".cyan(), config.websocket_url);
     println!("  {:<15} {}", "Keypair Path:".cyan(), config.keypair_path);
