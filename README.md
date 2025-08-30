@@ -56,3 +56,14 @@ create: in progress
 update:
 manage:
 util: 
+
+quick:
+    token
+        -- no-metadata 
+    launch
+        -- raydium
+        -- pumpfun
+    watch 
+        -- token 
+        -- pool
+        -- nft
