@@ -1,0 +1,309 @@
+use solana_client::rpc_client::RpcClient;
+use solana_sdk::signer::{keypair::read_keypair_file, Signer};
+use std::fs;
+use std::path::{Path, PathBuf};
+use std::process::{Command, Output};
+use std::thread;
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
+
+fn temp_home() -> PathBuf {
+    let nanos = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .expect("clock drift")
+        .as_nanos();
+    let dir = std::env::temp_dir().join(format!("spl_forge_it_{}_{}", std::process::id(), nanos));
+    fs::create_dir_all(&dir).expect("failed to create temp home");
+    dir
+}
+
+fn run_cmd(home: &Path, args: &[&str]) -> Output {
+    let output = Command::new(env!("CARGO_BIN_EXE_spl-forge"))
+        .args(args)
+        .env("HOME", home)
+        .env("NO_COLOR", "1")
+        .output()
+        .expect("failed to run spl-forge command");
+    output
+}
+
+fn assert_ok(output: &Output, args: &[&str]) {
+    if !output.status.success() {
+        panic!(
+            "command failed: spl-forge {}\nstatus: {:?}\nstdout:\n{}\nstderr:\n{}",
+            args.join(" "),
+            output.status.code(),
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        );
+    }
+}
+
+fn assert_fail(output: &Output, args: &[&str]) {
+    if output.status.success() {
+        panic!(
+            "command unexpectedly succeeded: spl-forge {}\nstdout:\n{}\nstderr:\n{}",
+            args.join(" "),
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        );
+    }
+}
+
+fn capture_pubkey_from_output(output: &str) -> Option<String> {
+    output
+        .split_whitespace()
+        .map(|s| s.trim())
+        .filter(|token| {
+            let len_ok = (32..=44).contains(&token.len());
+            let charset_ok = token
+                .chars()
+                .all(|c| matches!(c, '1'..='9' | 'A'..='H' | 'J'..='N' | 'P'..='Z' | 'a'..='k' | 'm'..='z'));
+            len_ok && charset_ok
+        })
+        .map(std::string::ToString::to_string)
+        .last()
+}
+
+fn fund_wallet_from_generated_config(home: &Path) {
+    let keypair_path = home.join(".config").join("spl-forge").join("id.json");
+    let keypair = read_keypair_file(&keypair_path).expect("failed to read generated keypair");
+    let rpc = RpcClient::new("http://127.0.0.1:8899".to_string());
+
+    // Wait for validator startup before requesting faucet funds.
+    for _ in 0..60 {
+        if rpc.get_latest_blockhash().is_ok() {
+            break;
+        }
+        thread::sleep(Duration::from_millis(500));
+    }
+
+    let mut last_error = None;
+    for _ in 0..20 {
+        match rpc.request_airdrop(&keypair.pubkey(), 2_000_000_000) {
+            Ok(_sig) => {
+                for _ in 0..20 {
+                    let bal = rpc.get_balance(&keypair.pubkey()).unwrap_or(0);
+                    if bal > 0 {
+                        return;
+                    }
+                    thread::sleep(Duration::from_millis(500));
+                }
+            }
+            Err(e) => {
+                last_error = Some(e.to_string());
+            }
+        }
+
+        thread::sleep(Duration::from_millis(500));
+    }
+
+    panic!(
+        "airdrop did not finalize in time; last faucet error: {}",
+        last_error.unwrap_or_else(|| "none".to_string())
+    );
+}
+
+#[test]
+fn aggressive_localnet_command_sweep() {
+    let home = temp_home();
+
+    // help
+    let out = run_cmd(&home, &["help"]);
+    assert_ok(&out, &["help"]);
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    assert!(stdout.contains("SPL-FORGE"));
+    assert!(stdout.contains("Commands:"));
+
+    // config presets
+    let out = run_cmd(&home, &["config", "set", "localhost"]);
+    assert_ok(&out, &["config", "set", "localhost"]);
+
+    let out = run_cmd(&home, &["config", "get"]);
+    assert_ok(&out, &["config", "get"]);
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    assert!(stdout.contains("http://127.0.0.1:8899"));
+    assert!(stdout.contains("ws://127.0.0.1:8900/"));
+
+    let out = run_cmd(&home, &["config", "set", "devnet"]);
+    assert_ok(&out, &["config", "set", "devnet"]);
+    let out = run_cmd(&home, &["config", "get"]);
+    assert_ok(&out, &["config", "get"]);
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    assert!(stdout.contains("https://api.devnet.solana.com"));
+    assert!(stdout.contains("wss://api.devnet.solana.com/"));
+
+    let out = run_cmd(&home, &["config", "set", "mainnet"]);
+    assert_ok(&out, &["config", "set", "mainnet"]);
+    let out = run_cmd(&home, &["config", "get"]);
+    assert_ok(&out, &["config", "get"]);
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    assert!(stdout.contains("https://api.mainnet-beta.solana.com"));
+    assert!(stdout.contains("wss://api.mainnet-beta.solana.com/"));
+
+    // Back to localnet for on-chain testing.
+    let out = run_cmd(&home, &["config", "set", "localhost"]);
+    assert_ok(&out, &["config", "set", "localhost"]);
+
+    // Fund local wallet generated by first run.
+    fund_wallet_from_generated_config(&home);
+
+    // Get public key for mint authority.
+    let keypair = read_keypair_file(home.join(".config").join("spl-forge").join("id.json"))
+        .expect("failed to read keypair for authority");
+    let authority = keypair.pubkey().to_string();
+
+    // create mint should succeed on localnet.
+    let out = run_cmd(
+        &home,
+        &[
+            "create",
+            "mint",
+            "--mint-authority",
+            &authority,
+            "--decimals",
+            "6",
+            "--initial-supply",
+            "10",
+        ],
+    );
+    assert_ok(
+        &out,
+        &[
+            "create",
+            "mint",
+            "--mint-authority",
+            "<PUBKEY>",
+            "--decimals",
+            "6",
+            "--initial-supply",
+            "10",
+        ],
+    );
+    let mint_stdout = String::from_utf8_lossy(&out.stdout);
+    assert!(mint_stdout.contains("Mint Address:"));
+    let mint_address = capture_pubkey_from_output(&mint_stdout).expect("failed to parse mint address from output");
+
+    // create metadata/token/nft are expected to fail until metadata support is enabled again.
+    let out = run_cmd(
+        &home,
+        &[
+            "create",
+            "metadata",
+            "--mint-address",
+            &mint_address,
+            "--name",
+            "Aggressive Test Token",
+            "--symbol",
+            "AGG",
+            "--uri",
+            "https://example.com/token.json",
+            "--immutable",
+        ],
+    );
+    assert_fail(
+        &out,
+        &[
+            "create",
+            "metadata",
+            "--mint-address",
+            "<MINT>",
+            "--name",
+            "...",
+        ],
+    );
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(stderr.contains("metadata creation is temporarily disabled"));
+
+    let out = run_cmd(
+        &home,
+        &[
+            "create",
+            "token",
+            "--name",
+            "Aggressive Test Token",
+            "--symbol",
+            "AGG",
+            "--decimals",
+            "6",
+            "--initial-supply",
+            "25",
+            "--uri",
+            "https://example.com/token.json",
+            "--immutable",
+        ],
+    );
+    assert_fail(&out, &["create", "token", "..."]);
+
+    let out = run_cmd(
+        &home,
+        &[
+            "create",
+            "nft",
+            "--name",
+            "Aggressive Test NFT",
+            "--symbol",
+            "ANFT",
+            "--uri",
+            "https://example.com/nft.json",
+            "--immutable",
+        ],
+    );
+    assert_fail(&out, &["create", "nft", "..."]);
+
+    // not implemented commands should return success with warning message.
+    let out = run_cmd(
+        &home,
+        &[
+            "create",
+            "market",
+            "--base-mint",
+            &mint_address,
+            "--quote-mint",
+            &mint_address,
+        ],
+    );
+    assert_ok(&out, &["create", "market", "..."]);
+    assert!(String::from_utf8_lossy(&out.stdout).contains("not implemented yet"));
+
+    let out = run_cmd(
+        &home,
+        &[
+            "create",
+            "pool",
+            "--market-id",
+            "raydium",
+            "--base-amount",
+            "1",
+            "--quote-amount",
+            "1",
+        ],
+    );
+    assert_ok(&out, &["create", "pool", "..."]);
+    assert!(String::from_utf8_lossy(&out.stdout).contains("not implemented yet"));
+
+    let out = run_cmd(
+        &home,
+        &[
+            "create",
+            "launch",
+            "--name",
+            "Aggressive Launch",
+            "--symbol",
+            "ALCH",
+            "--image-path",
+            "./logo.png",
+            "--decimals",
+            "6",
+            "--initial-supply",
+            "1000",
+            "--initial-lp-base",
+            "1",
+            "--initial-lp-quote",
+            "1",
+            "--lock-lp-duration",
+            "0",
+        ],
+    );
+    assert_ok(&out, &["create", "launch", "..."]);
+    assert!(String::from_utf8_lossy(&out.stdout).contains("not implemented yet"));
+}

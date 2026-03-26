@@ -1,6 +1,6 @@
 use crate::{commands::config::ConfigData, common::paths::path};
+use crate::common::theme;
 use anyhow::Result;
-use colored::Colorize;
 use solana_sdk::signer::{keypair::Keypair, Signer};
 use std::path::PathBuf;
 
@@ -14,7 +14,7 @@ pub fn ensure_config_exists() -> Result<()> {
 
 fn run_first_time_setup(config_path: &PathBuf) -> Result<()> {
     println!();
-    println!("{}", "Welcome to spl-forge! Performing first-time setup...".bold().yellow());
+    println!("{}", theme::heading("Welcome to spl-forge! Performing first-time setup..."));
     println!();
 
     let config = ConfigData::default_values();
@@ -33,22 +33,22 @@ fn run_first_time_setup(config_path: &PathBuf) -> Result<()> {
 
     println!(
         "A new keypair has been created for you at: {}",
-        keypair_path.to_string_lossy().cyan()
+        theme::label(&keypair_path.to_string_lossy())
     );
     println!(
         "   Your new public key is: {}",
-        keypair.pubkey().to_string().bold()
+        theme::success(&keypair.pubkey().to_string())
     );
 
     config.save()?;
     println!(
         "Default configuration file created at: {}",
-        config_path.to_string_lossy().cyan()
+        theme::label(&config_path.to_string_lossy())
     );
 
     println!();
-    println!("{}", "Tip: To use your existing Solana CLI wallet, run:".italic());
-    println!("{}", "spl-forge config set --keypair solana-cli".green());
+    println!("{}", theme::tip("Tip: To use your existing Solana CLI wallet, run:"));
+    println!("{}", theme::command("spl-forge config set --keypair solana-cli"));
     println!();
 
     Ok(())

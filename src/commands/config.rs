@@ -1,7 +1,7 @@
 use crate::cli::{ConfigArgs, ConfigCommand};
 use crate::common::paths::{get_solana_keypair_path, path};
+use crate::common::theme;
 use anyhow::Result;
-use colored::Colorize;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -54,21 +54,54 @@ pub async fn handle_config(args: ConfigArgs) -> Result<()> {
     match args.command {
         ConfigCommand::Get => handle_get().await,
         ConfigCommand::Reset => handle_reset().await,
-        ConfigCommand::Set { url, keypair, commitment } => {
-            handle_set(url, keypair, commitment).await
+        ConfigCommand::Set {
+            network,
+            url,
+            keypair,
+            commitment,
+        } => {
+            handle_set(network, url, keypair, commitment).await
         }
     }
+}
+
+fn apply_network_preset(config: &mut ConfigData, network: &str) -> Result<()> {
+    match network.to_ascii_lowercase().as_str() {
+        "devnet" => {
+            config.json_rpc_url = "https://api.devnet.solana.com".to_string();
+            config.websocket_url = "wss://api.devnet.solana.com/".to_string();
+            config.commitment = "confirmed".to_string();
+        }
+        "mainnet" | "mainnet-beta" => {
+            config.json_rpc_url = "https://api.mainnet-beta.solana.com".to_string();
+            config.websocket_url = "wss://api.mainnet-beta.solana.com/".to_string();
+            config.commitment = "confirmed".to_string();
+        }
+        "localhost" | "localnet" => {
+            config.json_rpc_url = "http://127.0.0.1:8899".to_string();
+            config.websocket_url = "ws://127.0.0.1:8900/".to_string();
+            config.commitment = "confirmed".to_string();
+        }
+        _ => {
+            anyhow::bail!(
+                "Invalid network preset '{}'. Use one of: devnet, mainnet, localhost",
+                network
+            );
+        }
+    }
+
+    Ok(())
 }
 
 async fn handle_get() -> Result<()> {
     let config = ConfigData::load()?;
     println!();
-    println!("{}", "Current Configuration:".bold().yellow());
-    println!("  {:<15} {}", "Config Path:".cyan(), path()?.to_string_lossy());
-    println!("  {:<15} {}", "RPC URL:".cyan(), config.json_rpc_url);
-    println!("  {:<15} {}", "Websocket URL:".cyan(), config.websocket_url);
-    println!("  {:<15} {}", "Keypair Path:".cyan(), config.keypair_path);
-    println!("  {:<15} {}", "Commitment:".cyan(), config.commitment);
+    println!("{}", theme::heading("Current Configuration:"));
+    println!("  {:<15} {}", theme::label("Config Path:"), path()?.to_string_lossy());
+    println!("  {:<15} {}", theme::label("RPC URL:"), config.json_rpc_url);
+    println!("  {:<15} {}", theme::label("Websocket URL:"), config.websocket_url);
+    println!("  {:<15} {}", theme::label("Keypair Path:"), config.keypair_path);
+    println!("  {:<15} {}", theme::label("Commitment:"), config.commitment);
     println!();
     Ok(())
 }
@@ -77,25 +110,35 @@ async fn handle_reset() -> Result<()> {
     let config = ConfigData::default_values();
     config.save()?;
     println!();
-    println!("{}", "Configuration has been reset to default values.".green());
+    println!("{}", theme::success("Configuration has been reset to default values."));
     handle_get().await?; // Show the newly reset config
     Ok(())
 }
 
 async fn handle_set(
+    network: Option<String>,
     url: Option<String>,
     keypair: Option<PathBuf>,
     commitment: Option<String>,
 ) -> Result<()> {
-    if url.is_none() && keypair.is_none() && commitment.is_none() {
+    if network.is_none() && url.is_none() && keypair.is_none() && commitment.is_none() {
         println!();
-        println!("{}", "No values provided to set. Use --url, --keypair, or --commitment.".yellow());
-        println!("Example: spl-forge config set --url https://api.devnet.solana.com");
+        println!("{}", theme::warning("No values provided to set. Use --url, --keypair, or --commitment."));
+        println!(
+            "{}",
+            theme::muted(
+                "Examples: spl-forge config set devnet | spl-forge config set localhost | spl-forge config set --url https://api.devnet.solana.com"
+            )
+        );
         println!();
         return Ok(());
     }
 
     let mut config = ConfigData::load()?;
+
+    if let Some(network) = network {
+        apply_network_preset(&mut config, &network)?;
+    }
 
     if let Some(url) = url {
         config.json_rpc_url = url;
@@ -116,7 +159,7 @@ async fn handle_set(
 
     config.save()?;
     println!();
-    println!("{}", "Configuration saved successfully.".green());
+    println!("{}", theme::success("Configuration saved successfully."));
     handle_get().await?;
     Ok(())
 }

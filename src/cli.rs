@@ -14,6 +14,7 @@ pub enum Command {
     Help,
     Config(ConfigArgs),
     Create(CreateArgs),
+    Wallet(WalletArgs),
 }
 
 #[derive(Parser, Debug)]
@@ -27,6 +28,9 @@ pub enum ConfigCommand {
     Get,
     Reset,
     Set {
+        #[arg(value_name = "NETWORK")]
+        network: Option<String>,
+
         #[arg(long)]
         url: Option<String>,
 
@@ -42,6 +46,25 @@ pub enum ConfigCommand {
 pub struct CreateArgs {
     #[command(subcommand)]
     pub command: CreateCommand,
+}
+
+#[derive(Parser, Debug)]
+pub struct WalletArgs {
+    #[command(subcommand)]
+    pub command: WalletCommand,
+}
+
+#[derive(clap::Subcommand, Debug)]
+pub enum WalletCommand {
+    Address,
+    Balance {
+        #[arg(long)]
+        address: Option<String>,
+    },
+    Status,
+    Airdrop {
+        amount: f64,
+    },
 }
 
 #[derive(clap::Subcommand, Debug)]
