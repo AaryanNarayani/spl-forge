@@ -2,6 +2,15 @@
 name = "spl-forge"
 version = "0.1.0"
 edition = "2024"
+rust-version = "1.85"
+description = "A CLI toolkit for creating and managing SPL assets on Solana"
+readme = "README.md"
+repository = "https://github.com/AaryanNarayani/spl-forge"
+homepage = "https://github.com/AaryanNarayani/spl-forge"
+documentation = "https://docs.rs/spl-forge"
+license = "MIT"
+keywords = ["solana", "spl", "cli", "token", "web3"]
+categories = ["command-line-utilities", "cryptography::cryptocurrencies"]
 
 [dependencies]
 anyhow = "1.0.99"
