@@ -157,11 +157,26 @@ spl-forge create nft \
 
 ## Testing
 
-Run checks:
+Quick compile check:
 
 ```bash
 cargo check
-cargo test
 ```
 
-Current test status: no unit tests yet (`cargo test` runs with 0 tests).
+Run normal smoke tests:
+
+```bash
+cargo test --test commands_smoke -- --nocapture
+```
+
+Run aggressive localnet sweep:
+
+```bash
+cargo test --test commands_localnet -- --nocapture
+```
+
+Notes:
+
+- Localnet tests expect `solana-test-validator` on `127.0.0.1:8899`.
+- `commands_smoke` skips localnet-only create checks if validator is not reachable.
+- `create metadata`, `create token`, and `create nft` are currently expected to fail in tests until metadata support is re-enabled.
